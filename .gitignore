@@ -1,0 +1,8 @@
+bin/
+obj/
+staging/
+*.user
+.vs/
+Releases/
+.DS_Store
+notes/
