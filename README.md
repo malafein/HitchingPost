@@ -7,12 +7,15 @@ A Valheim mod that adds functional hitching posts to the game.
 - Prevents your animals from wandering off.
 - Configurable hitching key (default: `H`).
 - Simple to use: point at a tamed creature, press the hitch key to tether, then press the hitch key again while pointing at a beam to attach them. Press the key again while pointing at the tethered creature to unhitch.
-- Displays the personalized name of your tamed creatures on hover.
 
 ## Installation
 
-### Thunderstore / R2Modman (Recommended)
+### Thunderstore / r2modman (Recommended)
 Install via Thunderstore Mod Manager or r2modman.
+
+### Nexus Mods / Vortex
+1. Download the mod from [Nexus Mods]().
+2. Install via Vortex Mod Manager, or follow the Manual Installation instructions below.
 
 ### Manual Installation
 1. Install [BepInExPack Valheim](https://valheim.thunderstore.io/package/denikson/BepInExPack_Valheim/).
