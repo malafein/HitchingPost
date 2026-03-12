@@ -460,7 +460,7 @@ namespace malafein.Valheim.HitchingPost
 
         private void SyncZdoState()
         {
-            string tetherId = m_nview.GetZDO().GetString(HitchingManager.ZDO_KEY_BEAM);
+            string tetherId = m_nview.GetZDO().GetString(Plugin.ZDO_KEY_BEAM);
 
             // Tether broken/cleared
             if (string.IsNullOrEmpty(tetherId))
@@ -477,8 +477,7 @@ namespace malafein.Valheim.HitchingPost
             // If we have a cached beam, verify its GUID still matches ours
             if (m_beamNView != null && m_beamNView.IsValid())
             {
-                string beamId = m_beamNView.GetZDO().GetString("hitchingpost.creature");
-                if (beamId == tetherId) return; // All good
+                if (HitchingManager.BeamHasCreature(m_beamNView, tetherId)) return; // All good
             }
 
             // We need to find the beam in the loaded scene that has our tetherId
@@ -486,8 +485,7 @@ namespace malafein.Valheim.HitchingPost
             {
                 if (nview.IsValid() && HitchingManager.IsBeam(nview.gameObject))
                 {
-                    string candidateId = nview.GetZDO().GetString("hitchingpost.creature");
-                    if (candidateId == tetherId)
+                    if (HitchingManager.BeamHasCreature(nview, tetherId))
                     {
                         m_beamNView = nview;
                         CreateRope(nview);

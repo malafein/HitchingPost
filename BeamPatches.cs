@@ -1,4 +1,5 @@
 using HarmonyLib;
+using UnityEngine;
 
 namespace malafein.Valheim.HitchingPost
 {
@@ -57,6 +58,37 @@ namespace malafein.Valheim.HitchingPost
 
             if (!string.IsNullOrEmpty(__result)) __result += "\n";
             __result += $"[<color=yellow><b>{key}</b></color>] Tether {creatureName} here";
+        }
+
+        [HarmonyPatch(typeof(WearNTear), nameof(WearNTear.Destroy))]
+        [HarmonyPrefix]
+        private static void Prefix_WearNTearDestroy(WearNTear __instance)
+        {
+            if (__instance == null || __instance.gameObject == null) return;
+            if (!HitchingManager.IsBeam(__instance.gameObject)) return;
+            
+            var nview = __instance.GetComponent<ZNetView>();
+            if (nview == null || !nview.IsValid()) return;
+            
+            var idArray = HitchingManager.GetHitchedCreatures(nview);
+            if (idArray.Length == 0) return;
+            
+            foreach (var tc in UnityEngine.Object.FindObjectsOfType<TetherController>())
+            {
+                var tcNView = tc.GetComponent<ZNetView>();
+                if (tcNView != null && tcNView.IsValid())
+                {
+                    string tcId = tcNView.GetZDO().GetString(Plugin.ZDO_KEY_BEAM);
+                    if (!string.IsNullOrEmpty(tcId) && System.Array.IndexOf(idArray, tcId) >= 0)
+                    {
+                        var character = tc.GetComponent<Character>();
+                        if (character != null)
+                        {
+                            HitchingManager.Unhitch(character);
+                        }
+                    }
+                }
+            }
         }
     }
 }

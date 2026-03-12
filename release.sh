@@ -42,10 +42,4 @@ else
 fi
 cd ..
 
-# 4. Local Deployment (optional sync)
-PLUGINS_DIR="/home/malafein/.config/r2modmanPlus-local/Valheim/profiles/Testing/BepInEx/plugins/$PROJECT_NAME"
-echo "Deploying to r2modman Testing profile: $PLUGINS_DIR..."
-mkdir -p "$PLUGINS_DIR"
-cp -r "$STAGING_DIR"/* "$PLUGINS_DIR/"
-
-echo "Done! Release created at $RELEASES_DIR/$ZIP_NAME and deployed to local plugins."
+echo "Done! Release created at $RELEASES_DIR/$ZIP_NAME"
