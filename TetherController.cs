@@ -266,14 +266,14 @@ namespace malafein.Valheim.HitchingPost
         {
             if (m_ropeObject != null)
             {
-                Destroy(m_ropeObject);
+                DestroyImmediate(m_ropeObject);
                 m_ropeObject = null;
                 m_lineConnect = null;
                 ZLog.Log($"[HitchingPost] Destroyed LineConnect rope on {m_creature?.m_name}");
             }
             if (m_fallbackRope != null)
             {
-                Destroy(m_fallbackRope);
+                DestroyImmediate(m_fallbackRope);
                 m_fallbackRope = null;
                 ZLog.Log($"[HitchingPost] Destroyed fallback rope on {m_creature?.m_name}");
             }
@@ -474,10 +474,16 @@ namespace malafein.Valheim.HitchingPost
                 return;
             }
 
-            // If we have a cached beam, verify its GUID still matches ours
-            if (m_beamNView != null && m_beamNView.IsValid())
+            // If we have a cached beam, verify its GUID still matches ours.
+            // Check the reference itself first — if IsValid() flickers false during
+            // ownership transfers we still keep the cached beam to avoid re-creating
+            // the rope unnecessarily.
+            if (m_beamNView != null)
             {
-                if (HitchingManager.BeamHasCreature(m_beamNView, tetherId)) return; // All good
+                if (m_beamNView.IsValid() && HitchingManager.BeamHasCreature(m_beamNView, tetherId))
+                    return; // All good — beam is valid and still has our tether
+                if (!m_beamNView.IsValid())
+                    return; // Beam temporarily invalid (ownership transfer / zone load) — wait it out
             }
 
             // We need to find the beam in the loaded scene that has our tetherId

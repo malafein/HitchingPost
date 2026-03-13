@@ -10,7 +10,7 @@ namespace malafein.Valheim.HitchingPost
     {
         public const string ModGUID = "com.malafein.hitchingpost";
         public const string ModName = "HitchingPost";
-        public const string ModVersion = "1.0.1";
+        public const string ModVersion = "1.0.2-pre";
 
         public const string ZDO_KEY_BEAM = "hitchingpost.beam";
         public const string ZDO_KEY_CREATURE = "hitchingpost.creature";
