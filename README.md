@@ -32,5 +32,9 @@ The `com.malafein.hitchingpost.cfg` file will be generated in your `BepInEx/conf
 ## Changelog
 See `CHANGELOG.md` for version history.
 
+## Bugs & Known Issues
+Feel free to log any issues you encounter while using this mod on [GitHub](https://github.com/malafein/HitchingPost/issues).  
+Currently, I know there are issues in multiplayer, where sometimes the hitching fails, or the rope doesn't appear when it should. I'll be looking into this one.
+
 ## Thank You
 kbutler73 and Jojenman - For all your help with testing, debugging, and ideas.  And most of all, the great fun and adventures!

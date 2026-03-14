@@ -25,7 +25,7 @@ elif [ -f "icon.png" ]; then
 fi
 
 # 3. Local Deployment
-PLUGINS_DIR="/home/malafein/.config/r2modmanPlus-local/Valheim/profiles/Testing/BepInEx/plugins/$PROJECT_NAME"
+PLUGINS_DIR="/home/malafein/.config/r2modmanPlus-local/Valheim/profiles/Testing/BepInEx/plugins/malafein-$PROJECT_NAME"
 echo "Deploying to r2modman Testing profile: $PLUGINS_DIR..."
 mkdir -p "$PLUGINS_DIR"
 cp -r "$STAGING_DIR"/* "$PLUGINS_DIR/"
