@@ -29,35 +29,54 @@ namespace malafein.Valheim.HitchingPost
         [HarmonyPriority(Priority.Low)]
         private static void Postfix_HoverTextBeam(HoverText __instance, ref string __result)
         {
-            if (!HitchingManager.IsHitchingModeActive) return;
-
             // Check that this HoverText belongs to a beam piece
             var piece = __instance.GetComponentInParent<Piece>();
             if (piece == null || !HitchingManager.IsBeam(piece.gameObject)) return;
 
-            string key = Plugin.HitchKey.Value.MainKey.ToString();
-            string creatureName = "creature";
-
-            if (HitchingManager.HitchTarget != null)
+            if (HitchingManager.IsHitchingModeActive)
             {
-                creatureName = HitchingManager.HitchTarget.m_name;
-                var nview = HitchingManager.HitchTarget.GetComponent<ZNetView>();
-                if (nview != null && nview.IsValid())
+                string key = Plugin.HitchKey.Value.MainKey.ToString();
+                string creatureName = "creature";
+
+                if (HitchingManager.HitchTarget != null)
                 {
-                    string tamedName = nview.GetZDO().GetString("TamedName");
-                    if (!string.IsNullOrEmpty(tamedName))
-                        creatureName = tamedName;
+                    creatureName = HitchingManager.HitchTarget.m_name;
+                    var nview = HitchingManager.HitchTarget.GetComponent<ZNetView>();
+                    if (nview != null && nview.IsValid())
+                    {
+                        string tamedName = nview.GetZDO().GetString("TamedName");
+                        if (!string.IsNullOrEmpty(tamedName))
+                            creatureName = tamedName;
+                        else
+                            creatureName = Localization.instance.Localize(creatureName);
+                    }
                     else
+                    {
                         creatureName = Localization.instance.Localize(creatureName);
+                    }
                 }
-                else
-                {
-                    creatureName = Localization.instance.Localize(creatureName);
-                }
+
+                if (!string.IsNullOrEmpty(__result)) __result += "\n";
+                __result += $"[<color=yellow><b>{key}</b></color>] Tether {creatureName} here";
             }
 
-            if (!string.IsNullOrEmpty(__result)) __result += "\n";
-            __result += $"[<color=yellow><b>{key}</b></color>] Tether {creatureName} here";
+            if (Plugin.DebugMode.Value)
+            {
+                var beamNView = piece.GetComponent<ZNetView>();
+                if (beamNView != null && beamNView.IsValid())
+                {
+                    string[] ids = HitchingManager.GetHitchedCreatures(beamNView);
+                    if (ids.Length == 0)
+                    {
+                        __result += "\n<color=cyan>[DBG] Beam creatures: <none></color>";
+                    }
+                    else
+                    {
+                        foreach (string id in ids)
+                            __result += $"\n<color=cyan>[DBG] Creature ID: {id}</color>";
+                    }
+                }
+            }
         }
 
         [HarmonyPatch(typeof(WearNTear), nameof(WearNTear.Destroy))]

@@ -66,8 +66,11 @@ namespace malafein.Valheim.HitchingPost
             if (creatureNView == null || !creatureNView.IsValid()) return;
 
             // Claim ownership to ensure we can save to these ZDOs over multiplayer
-            if (!creatureNView.IsOwner()) creatureNView.ClaimOwnership();
-            if (!beamNView.IsOwner()) beamNView.ClaimOwnership();
+            bool hadCreatureOwnership = creatureNView.IsOwner();
+            bool hadBeamOwnership = beamNView.IsOwner();
+            if (!hadCreatureOwnership) creatureNView.ClaimOwnership();
+            if (!hadBeamOwnership) beamNView.ClaimOwnership();
+            ZLog.Log($"[HitchingPost] Ownership — creature: {(hadCreatureOwnership ? "already owner" : "claimed")}, beam: {(hadBeamOwnership ? "already owner" : "claimed")}");
 
             ZDO creatureZdo = creatureNView.GetZDO();
             ZDO beamZdo = beamNView.GetZDO();
@@ -76,8 +79,12 @@ namespace malafein.Valheim.HitchingPost
 
             // Persist cross-reference so the tether survives save/load and syncs to clients
             creatureZdo.Set(Plugin.ZDO_KEY_BEAM, tetherId);
+            string readback = creatureZdo.GetString(Plugin.ZDO_KEY_BEAM);
+            ZLog.Log($"[HitchingPost] Creature ZDO write readback: '{readback}' (expected: '{tetherId}', match: {readback == tetherId})");
 
             AddCreatureToBeam(beamNView, tetherId);
+            string beamReadback = beamNView.GetZDO().GetString(Plugin.ZDO_KEY_CREATURE);
+            ZLog.Log($"[HitchingPost] Beam ZDO creature list after write: '{beamReadback}'");
 
             ZLog.Log($"[HitchingPost] Saved tether GUID: {tetherId}");
 
