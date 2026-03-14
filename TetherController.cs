@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
@@ -33,6 +34,10 @@ namespace malafein.Valheim.HitchingPost
 
         // Fallback straight-line rope
         private LineRenderer m_fallbackRope;
+
+        // Debug label shown at rope midpoint
+        private GameObject m_debugLabel;
+        private TextMesh m_debugText;
 
         // Approximate attachment height on the creature (chest/neck area)
         private const float CreatureAttachHeight = 0.9f;
@@ -153,14 +158,42 @@ namespace malafein.Valheim.HitchingPost
             var prefab = FindVfxHarpoonedPrefab();
             if (prefab == null || peer == null) return false;
 
-            m_ropeObject = Instantiate(prefab, m_ropeAnchor.position, Quaternion.identity, m_ropeAnchor);
+            // Instantiate into a temporary INACTIVE parent so that Awake() is suppressed
+            // on all components — including ZNetView.Awake(), which would otherwise
+            // register a ZDO with ZDOMan. An orphaned ZDO (object destroyed but ZDO
+            // still live) causes ZNetScene to loop-retry spawning the object, which
+            // prevents the loading screen from ever completing.
+            var tempHost = new GameObject("HitchingPost_TempHost");
+            tempHost.SetActive(false);
 
-            // Strip particle systems — the harpoon VFX may have impact/spark effects we don't want
+            m_ropeObject = Instantiate(prefab, tempHost.transform);
+
+            // Safe to remove ZNetView here — Awake has not fired, so no ZDO was registered.
+            var ropeZNetView = m_ropeObject.GetComponent<ZNetView>();
+            if (ropeZNetView != null)
+            {
+                DestroyImmediate(ropeZNetView);
+                ZLog.Log("[HitchingPost] ZNetView removed before activation (no ZDO registered)");
+            }
+            else
+            {
+                ZLog.Log("[HitchingPost] Rope prefab has no ZNetView");
+            }
+
+            // Strip particle systems while still inactive (safe to DestroyImmediate here)
             foreach (var ps in m_ropeObject.GetComponentsInChildren<ParticleSystem>(true))
             {
                 ZLog.Log($"[HitchingPost] Stripping ParticleSystem '{ps.gameObject.name}' from rope VFX");
-                Destroy(ps.gameObject);
+                DestroyImmediate(ps.gameObject);
             }
+
+            // Reparent to the live anchor — this makes the hierarchy active and triggers
+            // Awake() on LineConnect and all other remaining components normally.
+            m_ropeObject.transform.SetParent(m_ropeAnchor);
+            m_ropeObject.transform.localPosition = Vector3.zero;
+            m_ropeObject.transform.localRotation = Quaternion.identity;
+
+            Destroy(tempHost);
 
             m_lineConnect = m_ropeObject.GetComponent<LineConnect>();
             if (m_lineConnect == null)
@@ -207,6 +240,7 @@ namespace malafein.Valheim.HitchingPost
         {
             UpdateRopeAnchor();
             UpdateSlack();
+            UpdateDebugLabel();
 
             // Show the rope object if it was hidden (e.g. beam went temporarily invalid)
             if (m_usingLineConnect && m_ropeObject != null && !m_ropeObject.activeSelf)
@@ -277,11 +311,13 @@ namespace malafein.Valheim.HitchingPost
                 m_fallbackRope = null;
                 ZLog.Log($"[HitchingPost] Destroyed fallback rope on {m_creature?.m_name}");
             }
+            DestroyDebugLabel();
         }
 
         private void OnDestroy()
         {
             DestroyRope();
+            DestroyDebugLabel();
             if (m_ropeAnchor != null)
                 Destroy(m_ropeAnchor.gameObject);
         }
@@ -456,6 +492,53 @@ namespace malafein.Valheim.HitchingPost
             return null;
         }
 
+        // ========================= Debug Label =========================
+
+        private void UpdateDebugLabel()
+        {
+            if (!Plugin.DebugMode.Value)
+            {
+                DestroyDebugLabel();
+                return;
+            }
+
+            if (m_beamNView == null || !m_beamNView.IsValid()) return;
+
+            string tetherId = m_nview.GetZDO().GetString(Plugin.ZDO_KEY_BEAM);
+            string shortId = string.IsNullOrEmpty(tetherId) ? "???" : tetherId.Substring(0, Mathf.Min(8, tetherId.Length));
+
+            if (m_debugLabel == null)
+            {
+                m_debugLabel = new GameObject("HitchingPost_DebugLabel");
+                m_debugText = m_debugLabel.AddComponent<TextMesh>();
+                m_debugText.fontSize = 24;
+                m_debugText.characterSize = 0.05f;
+                m_debugText.anchor = TextAnchor.MiddleCenter;
+                m_debugText.alignment = TextAlignment.Center;
+                m_debugText.color = Color.cyan;
+            }
+
+            // Position at midpoint between rope anchor and beam
+            Vector3 anchorPos = m_ropeAnchor != null ? m_ropeAnchor.position : transform.position + Vector3.up * CreatureAttachHeight;
+            m_debugLabel.transform.position = (anchorPos + m_beamNView.transform.position) * 0.5f;
+
+            // Billboard: face camera
+            if (Camera.main != null)
+                m_debugLabel.transform.rotation = Camera.main.transform.rotation;
+
+            m_debugText.text = shortId;
+        }
+
+        private void DestroyDebugLabel()
+        {
+            if (m_debugLabel != null)
+            {
+                Destroy(m_debugLabel);
+                m_debugLabel = null;
+                m_debugText = null;
+            }
+        }
+
         // ========================= ZDO Sync =========================
 
         private void SyncZdoState()
@@ -467,27 +550,36 @@ namespace malafein.Valheim.HitchingPost
             {
                 if (m_beamNView != null)
                 {
-                    ZLog.Log($"[HitchingPost] Tether broke/cleared on {m_creature.m_name}.");
+                    ZLog.LogWarning($"[HitchingPost] Tether broke/cleared on {m_creature.m_name}. IsOwner: {m_nview.IsOwner()}");
                     m_beamNView = null;
                     DestroyRope();
                 }
                 return;
             }
 
-            // If we have a cached beam, verify its GUID still matches ours.
-            // Check the reference itself first — if IsValid() flickers false during
-            // ownership transfers we still keep the cached beam to avoid re-creating
-            // the rope unnecessarily.
+            // If we have a cached beam, trust it as long as the reference is alive.
+            // The creature ZDO having a tether ID is the authoritative source of truth.
+            // BeamHasCreature reads the *beam's* ZDO, which can lag behind in multiplayer
+            // due to ownership transfers — so we never use it to invalidate a live reference.
             if (m_beamNView != null)
             {
-                if (m_beamNView.IsValid() && HitchingManager.BeamHasCreature(m_beamNView, tetherId))
-                    return; // All good — beam is valid and still has our tether
-                if (!m_beamNView.IsValid())
-                    return; // Beam temporarily invalid (ownership transfer / zone load) — wait it out
+                if (m_beamNView.IsValid())
+                    return; // Beam reference is live — tether is fine, don't recreate the rope
+                // Beam temporarily invalid (ownership transfer / zone load) — wait it out
+                return;
             }
 
             // We need to find the beam in the loaded scene that has our tetherId
-            foreach (ZNetView nview in FindObjectsOfType<ZNetView>())
+            var sw = Stopwatch.StartNew();
+            var allNViews = FindObjectsOfType<ZNetView>();
+            sw.Stop();
+
+            if (Plugin.DebugMode.Value)
+                ZLog.Log($"[HitchingPost] SyncZdoState scan: {allNViews.Length} ZNetViews in {sw.ElapsedMilliseconds}ms");
+            else if (sw.ElapsedMilliseconds > 50)
+                ZLog.LogWarning($"[HitchingPost] SyncZdoState scan took {sw.ElapsedMilliseconds}ms ({allNViews.Length} ZNetViews) — possible stutter");
+
+            foreach (ZNetView nview in allNViews)
             {
                 if (nview.IsValid() && HitchingManager.IsBeam(nview.gameObject))
                 {

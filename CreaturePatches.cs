@@ -35,6 +35,17 @@ namespace malafein.Valheim.HitchingPost
             {
                 __result += $"\n[<color=yellow><b>{key}</b></color>] Hitch";
             }
+
+            if (Plugin.DebugMode.Value)
+            {
+                var nview = __instance.GetComponent<ZNetView>();
+                if (nview != null && nview.IsValid())
+                {
+                    string tetherId = nview.GetZDO().GetString(Plugin.ZDO_KEY_BEAM);
+                    string idDisplay = string.IsNullOrEmpty(tetherId) ? "<none>" : tetherId;
+                    __result += $"\n<color=cyan>[DBG] Tether ID: {idDisplay}</color>";
+                }
+            }
         }
 
         // -------------------------------------------------------------------------

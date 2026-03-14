@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.2-pre
+## 1.0.2
 * Fixed duplicate ropes appearing in multiplayer.
 
 ## 1.0.1

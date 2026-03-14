@@ -10,7 +10,7 @@ namespace malafein.Valheim.HitchingPost
     {
         public const string ModGUID = "com.malafein.hitchingpost";
         public const string ModName = "HitchingPost";
-        public const string ModVersion = "1.0.2-pre";
+        public const string ModVersion = "1.0.2";
 
         public const string ZDO_KEY_BEAM = "hitchingpost.beam";
         public const string ZDO_KEY_CREATURE = "hitchingpost.creature";
@@ -18,6 +18,7 @@ namespace malafein.Valheim.HitchingPost
         private readonly Harmony harmony = new Harmony(ModGUID);
 
         public static ConfigEntry<KeyboardShortcut> HitchKey { get; private set; }
+        public static ConfigEntry<bool> DebugMode { get; private set; }
 
         private void Awake()
         {
@@ -26,6 +27,13 @@ namespace malafein.Valheim.HitchingPost
                 "HitchKey",
                 new KeyboardShortcut(KeyCode.H),
                 "Key to activate hitching mode, tether a creature to a beam, or unhitch a tethered creature."
+            );
+
+            DebugMode = Config.Bind(
+                "Debug",
+                "DebugMode",
+                false,
+                "When enabled, shows tether GUIDs in hover text and as a floating label along the rope."
             );
 
             ZLog.Log($"{ModName} {ModVersion} is loading...");
