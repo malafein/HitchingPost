@@ -68,12 +68,12 @@ namespace malafein.Valheim.HitchingPost
                     string[] ids = HitchingManager.GetHitchedCreatures(beamNView);
                     if (ids.Length == 0)
                     {
-                        __result += "\n<color=cyan>[DBG] Beam creatures: <none></color>";
+                        __result += "<size=12>\n[DBG] Tether ID: <color=#0FF><none></color></size>";
                     }
                     else
                     {
                         foreach (string id in ids)
-                            __result += $"\n<color=cyan>[DBG] Creature ID: {id}</color>";
+                            __result += $"<size=12>\n[DBG] Tether ID: <color=#0FF>{id}</color></size>";
                     }
                 }
             }

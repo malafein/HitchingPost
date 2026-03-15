@@ -27,7 +27,8 @@ A Valheim mod that adds functional hitching posts to the game.
 3. Extract the `HitchingPost.dll` file into your `<Valheim Install Folder>\BepInEx\plugins` directory.
 
 ## Configuration
-The `com.malafein.hitchingpost.cfg` file will be generated in your `BepInEx/config` folder after the first run. There you can change the hitch key binding.
+The `com.malafein.hitchingpost.cfg` file will be generated in your `BepInEx/config` folder after the first run.  
+There you can change the hitch key binding and toggle debug HoverText.
 
 ## Changelog
 See `CHANGELOG.md` for version history.
@@ -37,4 +38,4 @@ Feel free to log any issues you encounter while using this mod on [GitHub](https
 Currently, I know there are issues in multiplayer, where sometimes the hitching fails, or the rope doesn't appear when it should. I'll be looking into this one.
 
 ## Thank You
-kbutler73 and Jojenman - For all your help with testing, debugging, and ideas.  And most of all, the great fun and adventures!
+kbutler73 and Jojenman - For all your help with testing, debugging, ideas, and most of all, for the great fun and adventures in ValTeim!

@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.3
+* Updated README and fixed some Debug text.
+
 ## 1.0.2
 * Fixed duplicate ropes appearing in multiplayer.
 

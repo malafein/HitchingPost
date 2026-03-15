@@ -3,7 +3,7 @@
     <TargetFramework>net462</TargetFramework>
     <AssemblyName>HitchingPost</AssemblyName>
     <Description>A Valheim mod for hitching post functionality.</Description>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
     <RestoreAdditionalProjectSources>
