@@ -18,6 +18,8 @@ namespace malafein.Valheim.HitchingPost
         [HarmonyPriority(Priority.Low)]
         private static void Postfix_TameableHoverText(Tameable __instance, ref string __result)
         {
+            if (!__instance.IsTamed()) return;
+
             var creature = __instance.GetComponent<Character>();
             if (creature == null) return;
 

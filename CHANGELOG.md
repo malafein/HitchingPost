@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.4
+* Fixed hitching of non-tamed creatures. Previously, player was able to hitch any tameable creature. This was not intended and has been fixed. Now, the interaction only works on allied tameable creatures.
+
 ## 1.0.3
 * Updated README and fixed some Debug text.
 

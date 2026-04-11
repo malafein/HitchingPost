@@ -49,7 +49,7 @@ namespace malafein.Valheim.HitchingPost
         private static void HandleOutOfHitchingMode(GameObject hoverGO)
         {
             var tameable = hoverGO.GetComponentInParent<Tameable>();
-            if (tameable == null) return;
+            if (tameable == null || !tameable.IsTamed()) return;
 
             var creature = tameable.GetComponent<Character>();
             if (creature == null || creature is Player) return;
