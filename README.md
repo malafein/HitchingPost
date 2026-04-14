@@ -34,8 +34,7 @@ There you can change the hitch key binding and toggle debug HoverText.
 See `CHANGELOG.md` for version history.
 
 ## Bugs & Known Issues
-Feel free to log any issues you encounter while using this mod on [GitHub](https://github.com/malafein/HitchingPost/issues).  
-Currently, I know there are issues in multiplayer, where sometimes the hitching fails, or the rope doesn't appear when it should. I'll be looking into this one.
+Feel free to log any issues you encounter while using this mod on [GitHub](https://github.com/malafein/HitchingPost/issues).
 
 ## Thank You
 kbutler73 and Jojenman - For all your help with testing, debugging, ideas, and most of all, for the great fun and adventures in ValTeim!
