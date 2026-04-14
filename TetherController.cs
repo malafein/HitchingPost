@@ -187,6 +187,17 @@ namespace malafein.Valheim.HitchingPost
                 DestroyImmediate(ps.gameObject);
             }
 
+            // Strip ZSyncTransform components — their Awake() calls into ZNetView, which
+            // we already destroyed above. Without this, SetParent activates the hierarchy,
+            // ZSyncTransform.Awake() fires, finds no ZNetView, and throws a NRE every poll
+            // cycle (see issue #4).
+            foreach (var zst in m_ropeObject.GetComponentsInChildren<ZSyncTransform>(true))
+                DestroyImmediate(zst);
+
+            // Strip any ZNetView on child objects (the top-level one was removed above).
+            foreach (var znv in m_ropeObject.GetComponentsInChildren<ZNetView>(true))
+                DestroyImmediate(znv);
+
             // Reparent to the live anchor — this makes the hierarchy active and triggers
             // Awake() on LineConnect and all other remaining components normally.
             m_ropeObject.transform.SetParent(m_ropeAnchor);
@@ -364,113 +375,23 @@ namespace malafein.Valheim.HitchingPost
 
         // ========================= Prefab & Material Lookup =========================
 
-        /// <summary>
-        /// Multi-strategy search for the vfx_Harpooned prefab which contains the
-        /// authentic LineConnect rope component used by Valheim's Abyssal Harpoon.
-        ///
-        /// Strategy 1: Direct ZNetScene prefab lookup
-        /// Strategy 2: ObjectDB StatusEffects → SE_Harpooned → m_startEffects
-        /// Strategy 3: Resources.FindObjectsOfTypeAll brute-force scan
-        /// </summary>
         private static GameObject FindVfxHarpoonedPrefab()
         {
             if (s_vfxHarpoonedPrefab != null) return s_vfxHarpoonedPrefab;
             if (s_prefabSearchDone) return null;
 
-            ZLog.Log("[HitchingPost] === Begin vfx_Harpooned prefab search ===");
-
-            // Strategy 1: Direct ZNetScene lookup (fastest)
-            if (ZNetScene.instance != null)
-            {
-                var prefab = ZNetScene.instance.GetPrefab("vfx_Harpooned");
-                if (prefab != null)
-                {
-                    var lc = prefab.GetComponent<LineConnect>();
-                    if (lc != null)
-                    {
-                        ZLog.Log("[HitchingPost] [Strategy 1] Found vfx_Harpooned via ZNetScene.GetPrefab");
-                        s_vfxHarpoonedPrefab = prefab;
-                        return s_vfxHarpoonedPrefab;
-                    }
-                    ZLog.LogWarning("[HitchingPost] [Strategy 1] ZNetScene has vfx_Harpooned but no LineConnect component");
-                }
-                else
-                {
-                    ZLog.Log("[HitchingPost] [Strategy 1] vfx_Harpooned not found in ZNetScene");
-                }
-            }
-
-            // Strategy 2: ObjectDB StatusEffects → find SE_Harpooned → extract VFX prefab
-            try
-            {
-                if (ObjectDB.instance != null && ObjectDB.instance.m_StatusEffects != null)
-                {
-                    ZLog.Log($"[HitchingPost] [Strategy 2] Scanning {ObjectDB.instance.m_StatusEffects.Count} status effects...");
-                    foreach (var se in ObjectDB.instance.m_StatusEffects)
-                    {
-                        if (se == null) continue;
-                        if (se.name.IndexOf("Harpooned", System.StringComparison.OrdinalIgnoreCase) < 0 &&
-                            se.name.IndexOf("Harpoon", System.StringComparison.OrdinalIgnoreCase) < 0)
-                            continue;
-
-                        ZLog.Log($"[HitchingPost] [Strategy 2] Found StatusEffect: '{se.name}', checking start effects...");
-                        if (se.m_startEffects != null && se.m_startEffects.m_effectPrefabs != null)
-                        {
-                            foreach (var effect in se.m_startEffects.m_effectPrefabs)
-                            {
-                                if (effect.m_prefab == null) continue;
-                                ZLog.Log($"[HitchingPost] [Strategy 2]   Effect prefab: '{effect.m_prefab.name}'");
-                                var lc = effect.m_prefab.GetComponent<LineConnect>();
-                                if (lc != null)
-                                {
-                                    ZLog.Log($"[HitchingPost] [Strategy 2] SUCCESS — found LineConnect on '{effect.m_prefab.name}' via StatusEffect '{se.name}'");
-                                    s_vfxHarpoonedPrefab = effect.m_prefab;
-                                    return s_vfxHarpoonedPrefab;
-                                }
-                            }
-                        }
-                    }
-                    ZLog.Log("[HitchingPost] [Strategy 2] No matching StatusEffect with LineConnect found");
-                }
-            }
-            catch (System.Exception ex)
-            {
-                ZLog.LogWarning($"[HitchingPost] [Strategy 2] Exception scanning StatusEffects: {ex.Message}");
-            }
-
-            // Strategy 3: Brute-force Resources scan for any LineConnect in loaded assets
-            try
-            {
-                var allLineConnects = Resources.FindObjectsOfTypeAll<LineConnect>();
-                ZLog.Log($"[HitchingPost] [Strategy 3] Resources scan found {allLineConnects.Length} LineConnect component(s)");
-
-                foreach (var lc in allLineConnects)
-                {
-                    ZLog.Log($"[HitchingPost] [Strategy 3]   LineConnect on: '{lc.gameObject.name}'");
-                    if (lc.gameObject.name.IndexOf("Harpooned", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        lc.gameObject.name.IndexOf("harpoon", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        ZLog.Log($"[HitchingPost] [Strategy 3] SUCCESS — matched '{lc.gameObject.name}'");
-                        s_vfxHarpoonedPrefab = lc.gameObject;
-                        return s_vfxHarpoonedPrefab;
-                    }
-                }
-
-                // Last resort: use any LineConnect we found
-                if (allLineConnects.Length > 0)
-                {
-                    ZLog.LogWarning($"[HitchingPost] [Strategy 3] No harpoon-specific LineConnect. Using first available: '{allLineConnects[0].gameObject.name}'");
-                    s_vfxHarpoonedPrefab = allLineConnects[0].gameObject;
-                    return s_vfxHarpoonedPrefab;
-                }
-            }
-            catch (System.Exception ex)
-            {
-                ZLog.LogWarning($"[HitchingPost] [Strategy 3] Exception during Resources scan: {ex.Message}");
-            }
-
-            ZLog.LogWarning("[HitchingPost] === All strategies exhausted. No LineConnect prefab found. Will use fallback rope. ===");
             s_prefabSearchDone = true;
+
+            if (ZNetScene.instance == null) return null;
+
+            var prefab = ZNetScene.instance.GetPrefab("vfx_Harpooned");
+            if (prefab != null && prefab.GetComponent<LineConnect>() != null)
+            {
+                s_vfxHarpoonedPrefab = prefab;
+                return s_vfxHarpoonedPrefab;
+            }
+
+            ZLog.LogWarning("[HitchingPost] vfx_Harpooned not found in ZNetScene — using fallback rope");
             return null;
         }
 
