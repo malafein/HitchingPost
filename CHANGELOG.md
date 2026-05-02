@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.6
+* Fixed log spam caused by TetherController being attached to wild/untamed creatures (issue #5).
+* Creature names in log output now display their localized name instead of the raw key (e.g. "Boar" instead of "$enemy_boar").
+* Verbose internal log messages are now gated behind the DebugMode config option.
+
 ## 1.0.5
 * Fixed NullReferenceException spam in the console when creating a rope (issue #4).
 
