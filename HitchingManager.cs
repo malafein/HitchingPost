@@ -34,7 +34,7 @@ namespace malafein.Valheim.HitchingPost
                      ?? creature.gameObject.AddComponent<TetherController>();
             tc.InitHitchingMode(Player.m_localPlayer);
 
-            ZLog.Log($"[HitchingPost] Hitching mode activated for {creature.m_name}");
+            Plugin.DebugLog($"Hitching mode activated for {creature.GetHoverName()}");
         }
 
         /// <summary>
@@ -70,7 +70,7 @@ namespace malafein.Valheim.HitchingPost
             bool hadBeamOwnership = beamNView.IsOwner();
             if (!hadCreatureOwnership) creatureNView.ClaimOwnership();
             if (!hadBeamOwnership) beamNView.ClaimOwnership();
-            ZLog.Log($"[HitchingPost] Ownership — creature: {(hadCreatureOwnership ? "already owner" : "claimed")}, beam: {(hadBeamOwnership ? "already owner" : "claimed")}");
+
 
             ZDO creatureZdo = creatureNView.GetZDO();
             ZDO beamZdo = beamNView.GetZDO();
@@ -79,14 +79,10 @@ namespace malafein.Valheim.HitchingPost
 
             // Persist cross-reference so the tether survives save/load and syncs to clients
             creatureZdo.Set(Plugin.ZDO_KEY_BEAM, tetherId);
-            string readback = creatureZdo.GetString(Plugin.ZDO_KEY_BEAM);
-            ZLog.Log($"[HitchingPost] Creature ZDO write readback: '{readback}' (expected: '{tetherId}', match: {readback == tetherId})");
+            Plugin.DebugLog($"Creature ZDO write readback: '{creatureZdo.GetString(Plugin.ZDO_KEY_BEAM)}' (expected: '{tetherId}')");
 
             AddCreatureToBeam(beamNView, tetherId);
-            string beamReadback = beamNView.GetZDO().GetString(Plugin.ZDO_KEY_CREATURE);
-            ZLog.Log($"[HitchingPost] Beam ZDO creature list after write: '{beamReadback}'");
-
-            ZLog.Log($"[HitchingPost] Saved tether GUID: {tetherId}");
+            Plugin.DebugLog($"Beam ZDO creature list after write: '{beamNView.GetZDO().GetString(Plugin.ZDO_KEY_CREATURE)}'");
 
             // Switch to beam tether mode
             SetStay(HitchTarget);
@@ -94,7 +90,7 @@ namespace malafein.Valheim.HitchingPost
             var tc = HitchTarget.GetComponent<TetherController>();
             if (tc != null) tc.ForceBeam(beamNView);
 
-            ZLog.Log($"[HitchingPost] {HitchTarget.m_name} hitched to beam at {beamNView.transform.position}");
+            ZLog.Log($"[HitchingPost] {HitchTarget.GetHoverName()} hitched to beam at {beamNView.transform.position}");
 
             IsHitchingModeActive = false;
             HitchTarget = null;
@@ -133,7 +129,7 @@ namespace malafein.Valheim.HitchingPost
             }
 
             SetFollow(creature);
-            ZLog.Log($"[HitchingPost] {creature.m_name} unhitched");
+            ZLog.Log($"[HitchingPost] {creature.GetHoverName()} unhitched");
         }
 
         public static bool IsHitched(Character creature)

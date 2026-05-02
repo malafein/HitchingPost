@@ -61,7 +61,7 @@ namespace malafein.Valheim.HitchingPost
             m_creature = GetComponent<Character>();
             m_nview = GetComponent<ZNetView>();
             if (m_nview != null && m_nview.IsValid())
-                ZLog.Log($"[HitchingPost] TetherController Awake on {m_creature.m_name} (ZDO: {m_nview.GetZDO().m_uid})");
+                Plugin.DebugLog($"TetherController Awake on {m_creature.GetHoverName()} (ZDO: {m_nview.GetZDO().m_uid})");
         }
 
         /// <summary>Called when activating hitching mode; rope draws to the player.</summary>
@@ -70,7 +70,7 @@ namespace malafein.Valheim.HitchingPost
             m_playerTarget = player.transform;
             m_beamNView = null;
             CreateRope(player.GetComponent<ZNetView>());
-            ZLog.Log($"[HitchingPost] InitHitchingMode active on {m_creature.m_name}");
+            Plugin.DebugLog($"InitHitchingMode active on {m_creature.GetHoverName()}");
         }
 
         public void ForceBeam(ZNetView beam)
@@ -132,13 +132,13 @@ namespace malafein.Valheim.HitchingPost
             if (TryCreateLineConnectRope(peer))
             {
                 m_usingLineConnect = true;
-                ZLog.Log($"[HitchingPost] Created authentic LineConnect rope on {m_creature.m_name}");
+                Plugin.DebugLog($"Created authentic LineConnect rope on {m_creature.GetHoverName()}");
             }
             else
             {
                 CreateFallbackRope();
                 m_usingLineConnect = false;
-                ZLog.LogWarning($"[HitchingPost] Using fallback straight-line rope on {m_creature.m_name}");
+                Plugin.WarningLog($"Using fallback straight-line rope on {m_creature.GetHoverName()}");
             }
         }
 
@@ -150,7 +150,7 @@ namespace malafein.Valheim.HitchingPost
             anchorObj.transform.SetParent(transform);
             anchorObj.transform.localPosition = Vector3.up * CreatureAttachHeight;
             m_ropeAnchor = anchorObj.transform;
-            ZLog.Log($"[HitchingPost] Created rope anchor on {m_creature.m_name} at local height {CreatureAttachHeight}");
+            Plugin.DebugLog($"Created rope anchor on {m_creature.GetHoverName()} at local height {CreatureAttachHeight}");
         }
 
         private bool TryCreateLineConnectRope(ZNetView peer)
@@ -173,17 +173,17 @@ namespace malafein.Valheim.HitchingPost
             if (ropeZNetView != null)
             {
                 DestroyImmediate(ropeZNetView);
-                ZLog.Log("[HitchingPost] ZNetView removed before activation (no ZDO registered)");
+                Plugin.DebugLog("ZNetView removed before activation (no ZDO registered)");
             }
             else
             {
-                ZLog.Log("[HitchingPost] Rope prefab has no ZNetView");
+                Plugin.DebugLog("Rope prefab has no ZNetView");
             }
 
             // Strip particle systems while still inactive (safe to DestroyImmediate here)
             foreach (var ps in m_ropeObject.GetComponentsInChildren<ParticleSystem>(true))
             {
-                ZLog.Log($"[HitchingPost] Stripping ParticleSystem '{ps.gameObject.name}' from rope VFX");
+                Plugin.DebugLog($"Stripping ParticleSystem '{ps.gameObject.name}' from rope VFX");
                 DestroyImmediate(ps.gameObject);
             }
 
@@ -209,7 +209,7 @@ namespace malafein.Valheim.HitchingPost
             m_lineConnect = m_ropeObject.GetComponent<LineConnect>();
             if (m_lineConnect == null)
             {
-                ZLog.LogWarning("[HitchingPost] vfx_Harpooned instance missing LineConnect component");
+                Plugin.WarningLog("vfx_Harpooned instance missing LineConnect component");
                 Destroy(m_ropeObject);
                 m_ropeObject = null;
                 return false;
@@ -220,7 +220,7 @@ namespace malafein.Valheim.HitchingPost
             m_lineConnect.m_dynamicThickness = true;
             m_lineConnect.m_minThickness = 0.04f;
 
-            ZLog.Log($"[HitchingPost] LineConnect configured: maxDist={m_lineConnect.m_maxDistance}, peer={peer.gameObject.name}");
+            Plugin.DebugLog($"LineConnect configured: maxDist={m_lineConnect.m_maxDistance}, peer={peer.gameObject.name}");
             return true;
         }
 
@@ -236,7 +236,7 @@ namespace malafein.Valheim.HitchingPost
             m_fallbackRope.useWorldSpace = true;
             m_fallbackRope.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             m_fallbackRope.textureMode = LineTextureMode.Tile;
-            ZLog.Log("[HitchingPost] Created fallback LineRenderer rope");
+            Plugin.DebugLog("Created fallback LineRenderer rope");
         }
 
         // ========================= Rope Updates =========================
@@ -295,13 +295,13 @@ namespace malafein.Valheim.HitchingPost
                 if (m_ropeObject != null && m_ropeObject.activeSelf)
                 {
                     m_ropeObject.SetActive(false);
-                    ZLog.Log($"[HitchingPost] Rope hidden on {m_creature.m_name} (Beam invalid/null)");
+                    Plugin.DebugLog($"Rope hidden on {m_creature.GetHoverName()} (Beam invalid/null)");
                 }
             }
             else if (m_fallbackRope != null && m_fallbackRope.enabled)
             {
                 m_fallbackRope.enabled = false;
-                ZLog.Log($"[HitchingPost] Rope disabled on {m_creature.m_name} (Beam invalid/null)");
+                Plugin.DebugLog($"Rope disabled on {m_creature.GetHoverName()} (Beam invalid/null)");
             }
         }
 
@@ -314,13 +314,13 @@ namespace malafein.Valheim.HitchingPost
                 DestroyImmediate(m_ropeObject);
                 m_ropeObject = null;
                 m_lineConnect = null;
-                ZLog.Log($"[HitchingPost] Destroyed LineConnect rope on {m_creature?.m_name}");
+                Plugin.DebugLog($"Destroyed LineConnect rope on {m_creature?.GetHoverName()}");
             }
             if (m_fallbackRope != null)
             {
                 DestroyImmediate(m_fallbackRope);
                 m_fallbackRope = null;
-                ZLog.Log($"[HitchingPost] Destroyed fallback rope on {m_creature?.m_name}");
+                Plugin.DebugLog($"Destroyed fallback rope on {m_creature?.GetHoverName()}");
             }
             DestroyDebugLabel();
         }
@@ -391,7 +391,7 @@ namespace malafein.Valheim.HitchingPost
                 return s_vfxHarpoonedPrefab;
             }
 
-            ZLog.LogWarning("[HitchingPost] vfx_Harpooned not found in ZNetScene — using fallback rope");
+            Plugin.WarningLog("vfx_Harpooned not found in ZNetScene — using fallback rope");
             return null;
         }
 
@@ -405,11 +405,11 @@ namespace malafein.Valheim.HitchingPost
                 var mat = new Material(shader);
                 mat.color = new Color(0.55f, 0.38f, 0.18f, 1f);
                 s_fallbackRopeMaterial = mat;
-                ZLog.Log("[HitchingPost] Created fallback rope material (brown, Sprites/Default)");
+                Plugin.DebugLog("Created fallback rope material (brown, Sprites/Default)");
                 return s_fallbackRopeMaterial;
             }
 
-            ZLog.LogError("[HitchingPost] Failed to create fallback material — Sprites/Default shader not found");
+            Plugin.ErrorLog("Failed to create fallback material — Sprites/Default shader not found");
             return null;
         }
 
@@ -471,7 +471,7 @@ namespace malafein.Valheim.HitchingPost
             {
                 if (m_beamNView != null)
                 {
-                    ZLog.LogWarning($"[HitchingPost] Tether broke/cleared on {m_creature.m_name}. IsOwner: {m_nview.IsOwner()}");
+                    Plugin.DebugLog($"Tether broke/cleared on {m_creature.GetHoverName()}. IsOwner: {m_nview.IsOwner()}");
                     m_beamNView = null;
                     DestroyRope();
                 }
@@ -495,10 +495,9 @@ namespace malafein.Valheim.HitchingPost
             var allNViews = FindObjectsOfType<ZNetView>();
             sw.Stop();
 
-            if (Plugin.DebugMode.Value)
-                ZLog.Log($"[HitchingPost] SyncZdoState scan: {allNViews.Length} ZNetViews in {sw.ElapsedMilliseconds}ms");
-            else if (sw.ElapsedMilliseconds > 50)
-                ZLog.LogWarning($"[HitchingPost] SyncZdoState scan took {sw.ElapsedMilliseconds}ms ({allNViews.Length} ZNetViews) — possible stutter");
+            Plugin.DebugLog($"SyncZdoState scan: {allNViews.Length} ZNetViews in {sw.ElapsedMilliseconds}ms");
+            if (sw.ElapsedMilliseconds > 50)
+                Plugin.WarningLog($"SyncZdoState scan took {sw.ElapsedMilliseconds}ms ({allNViews.Length} ZNetViews) — possible stutter");
 
             foreach (ZNetView nview in allNViews)
             {
@@ -508,7 +507,7 @@ namespace malafein.Valheim.HitchingPost
                     {
                         m_beamNView = nview;
                         CreateRope(nview);
-                        ZLog.Log($"[HitchingPost] {m_creature.m_name} successfully resolved beam instance by GUID {tetherId}.");
+                        Plugin.DebugLog($"{m_creature.GetHoverName()} successfully resolved beam instance by GUID {tetherId}.");
                         return;
                     }
                 }
@@ -517,7 +516,7 @@ namespace malafein.Valheim.HitchingPost
             // Only log wait occasionally to avoid log spam
             m_networkWaitTicks++;
             if (m_networkWaitTicks % 4 == 0)
-                ZLog.LogWarning($"[HitchingPost] {m_creature.m_name} cannot find beam with GUID {tetherId}. Wait for network load.");
+                Plugin.WarningLog($"{m_creature.GetHoverName()} cannot find beam with GUID {tetherId}. Wait for network load.");
         }
     }
 }

@@ -60,14 +60,28 @@ namespace malafein.Valheim.HitchingPost
         [HarmonyPostfix]
         private static void Postfix_TameableAwake(Tameable __instance)
         {
+            if (!__instance.IsTamed()) return;
+
             var creature = __instance.GetComponent<Character>();
-            // Skip players and untamed animals (though Tameable is rarely on Player)
             if (creature == null || creature is Player) return;
 
             var nview = __instance.GetComponent<ZNetView>();
             if (nview == null || !nview.IsValid()) return;
 
-            // Always attach the controller. It will sleep if no tether is active.
+            if (__instance.GetComponent<TetherController>() == null)
+            {
+                __instance.gameObject.AddComponent<TetherController>();
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // On taming: Attach TetherController when a wild creature becomes tamed.
+        // -------------------------------------------------------------------------
+
+        [HarmonyPatch(typeof(Tameable), "Tame")]
+        [HarmonyPostfix]
+        private static void Postfix_TameableTame(Tameable __instance)
+        {
             if (__instance.GetComponent<TetherController>() == null)
             {
                 __instance.gameObject.AddComponent<TetherController>();

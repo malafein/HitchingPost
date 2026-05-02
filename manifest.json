@@ -1,6 +1,6 @@
 {
     "name": "HitchingPost",
-    "version_number": "1.0.5",
+    "version_number": "1.0.6",
     "website_url": "https://github.com/malafein/HitchingPost",
     "description": "A Valheim mod for hitching post functionality.",
     "dependencies": [

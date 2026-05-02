@@ -10,7 +10,7 @@ namespace malafein.Valheim.HitchingPost
     {
         public const string ModGUID = "com.malafein.hitchingpost";
         public const string ModName = "HitchingPost";
-        public const string ModVersion = "1.0.5";
+        public const string ModVersion = "1.0.6";
 
         public const string ZDO_KEY_BEAM = "hitchingpost.beam";
         public const string ZDO_KEY_CREATURE = "hitchingpost.creature";
@@ -39,6 +39,22 @@ namespace malafein.Valheim.HitchingPost
             ZLog.Log($"{ModName} {ModVersion} is loading...");
             harmony.PatchAll();
             ZLog.Log($"{ModName} loaded!");
+        }
+
+        public static void DebugLog(string message)
+        {
+            if (DebugMode.Value)
+                ZLog.Log($"[HitchingPost] [DEBUG] {message}");
+        }
+
+        public static void WarningLog(string message)
+        {
+            ZLog.LogWarning($"[HitchingPost] [WARNING] {message}");
+        }
+
+        public static void ErrorLog(string message)
+        {
+            ZLog.LogError($"[HitchingPost] [ERROR] {message}");
         }
     }
 }
