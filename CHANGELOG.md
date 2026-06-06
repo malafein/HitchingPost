@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.8
+* Fixed tether ropes appearing at the wrong location (or not at all) after reloading a world, caused by the saved rope endpoint going stale across sessions (issue #7).
+* Improved hitching ropes not appearing on dedicated servers (issue #6, not yet fully confirmed). Network ownership of the creature is now claimed before the rope is created so the endpoint syncs, and a creature in hitching mode is flagged so nearby players all see the rope — not just the player doing the hitching.
+* Removed the straight-line fallback rope; the authentic vfx_Harpooned rope is now the only rope.
+* A stale tether to a beam that no longer exists is now cleared automatically instead of retrying indefinitely.
+* Minor performance and robustness cleanups.
+
 ## 1.0.6
 * Fixed TetherController being attached to wild/untamed creatures, which caused log spam (issue #5).
 * Creature names in log output now display their localized name instead of the raw key (e.g. "Boar" instead of "$enemy_boar").

@@ -26,6 +26,21 @@ namespace malafein.Valheim.HitchingPost
             IsHitchingModeActive = true;
             HitchTarget = creature;
 
+            // Claim ownership of the creature's ZDO before creating the rope.
+            // LineConnect.SetPeer only writes the rope endpoint into the creature
+            // ZDO when the local client owns it; on a dedicated server the creature
+            // is often owned by the server or another player, so without this the
+            // write silently no-ops and the rope never renders for anyone (see #6).
+            var creatureNView = creature.GetComponent<ZNetView>();
+            if (creatureNView != null && creatureNView.IsValid())
+            {
+                if (!creatureNView.IsOwner()) creatureNView.ClaimOwnership();
+                // Flag the creature as being followed so remote clients render the
+                // rope too (the endpoint itself rides along in LineConnect's
+                // synced line_peer; this key just tells them a rope exists).
+                creatureNView.GetZDO().Set(Plugin.ZDO_KEY_FOLLOW, "1");
+            }
+
             // Make creature follow player
             SetFollow(creature, Player.m_localPlayer.gameObject);
 
@@ -44,6 +59,14 @@ namespace malafein.Valheim.HitchingPost
         {
             if (HitchTarget != null)
             {
+                // Clear the follow flag so remote clients drop the rope.
+                var cnview = HitchTarget.GetComponent<ZNetView>();
+                if (cnview != null && cnview.IsValid())
+                {
+                    if (!cnview.IsOwner()) cnview.ClaimOwnership();
+                    cnview.GetZDO().Set(Plugin.ZDO_KEY_FOLLOW, "");
+                }
+
                 SetStay(HitchTarget);
                 var tc = HitchTarget.GetComponent<TetherController>();
                 if (tc != null) Object.Destroy(tc);
@@ -79,6 +102,8 @@ namespace malafein.Valheim.HitchingPost
 
             // Persist cross-reference so the tether survives save/load and syncs to clients
             creatureZdo.Set(Plugin.ZDO_KEY_BEAM, tetherId);
+            // No longer in hitching mode — the beam tether drives the rope now.
+            creatureZdo.Set(Plugin.ZDO_KEY_FOLLOW, "");
             Plugin.DebugLog($"Creature ZDO write readback: '{creatureZdo.GetString(Plugin.ZDO_KEY_BEAM)}' (expected: '{tetherId}')");
 
             AddCreatureToBeam(beamNView, tetherId);
@@ -126,6 +151,7 @@ namespace malafein.Valheim.HitchingPost
                 }
                 
                 creatureZdo.Set(Plugin.ZDO_KEY_BEAM, "");
+                creatureZdo.Set(Plugin.ZDO_KEY_FOLLOW, "");
             }
 
             SetFollow(creature);

@@ -1,3 +1,4 @@
+using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
 
@@ -20,6 +21,9 @@ namespace malafein.Valheim.HitchingPost
     [HarmonyPatch]
     public static class PlayerPatches
     {
+        private static readonly MethodInfo s_takeInput =
+            AccessTools.Method(typeof(Player), "TakeInput");
+
         [HarmonyPatch(typeof(Player), "Update")]
         [HarmonyPostfix]
         private static void Postfix(Player __instance)
@@ -27,7 +31,7 @@ namespace malafein.Valheim.HitchingPost
             if (__instance != Player.m_localPlayer) return;
 
             // Respect the game's own input suppression (menus, chat, cutscenes, etc.)
-            bool takeInput = (bool)AccessTools.Method(typeof(Player), "TakeInput").Invoke(__instance, null);
+            bool takeInput = (bool)s_takeInput.Invoke(__instance, null);
             if (!takeInput) return;
 
             if (!Plugin.HitchKey.Value.IsDown()) return;

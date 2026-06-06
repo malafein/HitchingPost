@@ -10,10 +10,14 @@ namespace malafein.Valheim.HitchingPost
     {
         public const string ModGUID = "com.malafein.hitchingpost";
         public const string ModName = "HitchingPost";
-        public const string ModVersion = "1.0.6";
+        public const string ModVersion = "1.0.8";
 
         public const string ZDO_KEY_BEAM = "hitchingpost.beam";
         public const string ZDO_KEY_CREATURE = "hitchingpost.creature";
+        // Set on a creature while a player has it in hitching mode (following).
+        // Synced so remote clients know to render the follow rope, not just the
+        // player doing the hitching.
+        public const string ZDO_KEY_FOLLOW = "hitchingpost.follow";
 
         private readonly Harmony harmony = new Harmony(ModGUID);
 

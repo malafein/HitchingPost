@@ -10,9 +10,8 @@ namespace malafein.Valheim.HitchingPost
     /// for a tethered beam ID. If found, enforces the physical tether to that beam
     /// and renders the rope. Also handles temporary 'hitching mode' (following player).
     ///
-    /// Primary rope: Instantiates Valheim's vfx_Harpooned prefab to get authentic
+    /// The rope is Valheim's vfx_Harpooned prefab, which gives an authentic
     /// LineConnect-based rope with slack and dynamic thickness.
-    /// Fallback: Straight LineRenderer with a procedural brown material.
     /// </summary>
     public class TetherController : MonoBehaviour
     {
@@ -30,10 +29,6 @@ namespace malafein.Valheim.HitchingPost
         private GameObject m_ropeObject;
         private LineConnect m_lineConnect;
         private Transform m_ropeAnchor;
-        private bool m_usingLineConnect;
-
-        // Fallback straight-line rope
-        private LineRenderer m_fallbackRope;
 
         // Debug label shown at rope midpoint
         private GameObject m_debugLabel;
@@ -45,14 +40,17 @@ namespace malafein.Valheim.HitchingPost
         private const float PullStrength = 6f;
         // Maximum slack in the LineConnect rope (mirrors harpoon value)
         private const float MaxRopeSlack = 0.3f;
+        // Failed beam-resolution polls before the owner gives up on a missing beam
+        // and clears the stale tether (poll interval is 2s while unresolved, so this
+        // is roughly 30s of grace for network/zone load).
+        private const int NetworkWaitGiveUp = 15;
 
         private float m_updateTimer;
         private int m_networkWaitTicks = 0;
 
-        // Cached prefab and fallback material (shared across all instances)
+        // Cached prefab (shared across all instances)
         private static GameObject s_vfxHarpoonedPrefab;
         private static bool s_prefabSearchDone;
-        private static Material s_fallbackRopeMaterial;
 
         // -------------------------------------------------------------------------
 
@@ -94,8 +92,6 @@ namespace malafein.Valheim.HitchingPost
                 {
                     UpdateRopeAnchor();
                     UpdateSlack();
-                    if (!m_usingLineConnect)
-                        DrawFallbackRopeToPlayer();
                     return;
                 }
                 m_playerTarget = null; // Hitching mode ended
@@ -116,6 +112,13 @@ namespace malafein.Valheim.HitchingPost
             {
                 UpdateBeamTether();
             }
+            else if (m_ropeObject != null)
+            {
+                // Passive rope: another player has this creature in hitching mode.
+                // The rope object exists and its LineConnect renders the endpoint
+                // synced into the creature ZDO; we just keep the anchor current.
+                UpdateRopeAnchor();
+            }
             else
             {
                 HideRope();
@@ -130,16 +133,9 @@ namespace malafein.Valheim.HitchingPost
             EnsureRopeAnchor();
 
             if (TryCreateLineConnectRope(peer))
-            {
-                m_usingLineConnect = true;
-                Plugin.DebugLog($"Created authentic LineConnect rope on {m_creature.GetHoverName()}");
-            }
+                Plugin.DebugLog($"Created LineConnect rope on {m_creature.GetHoverName()}");
             else
-            {
-                CreateFallbackRope();
-                m_usingLineConnect = false;
-                Plugin.WarningLog($"Using fallback straight-line rope on {m_creature.GetHoverName()}");
-            }
+                Plugin.WarningLog($"Could not create rope on {m_creature.GetHoverName()} — vfx_Harpooned unavailable");
         }
 
         private void EnsureRopeAnchor()
@@ -156,7 +152,7 @@ namespace malafein.Valheim.HitchingPost
         private bool TryCreateLineConnectRope(ZNetView peer)
         {
             var prefab = FindVfxHarpoonedPrefab();
-            if (prefab == null || peer == null) return false;
+            if (prefab == null) return false;
 
             // Instantiate into a temporary INACTIVE parent so that Awake() is suppressed
             // on all components — including ZNetView.Awake(), which would otherwise
@@ -215,28 +211,18 @@ namespace malafein.Valheim.HitchingPost
                 return false;
             }
 
-            m_lineConnect.SetPeer(peer);
+            // A null peer means this is a passive rope on a client that doesn't own
+            // the tether (e.g. another player has the creature in hitching mode).
+            // It just renders the endpoint already synced into the creature ZDO via
+            // LineConnect, so there's nothing for us to write.
+            if (peer != null)
+                m_lineConnect.SetPeer(peer);
             m_lineConnect.m_maxDistance = HitchingManager.TetherLength * 2f;
             m_lineConnect.m_dynamicThickness = true;
             m_lineConnect.m_minThickness = 0.04f;
 
-            Plugin.DebugLog($"LineConnect configured: maxDist={m_lineConnect.m_maxDistance}, peer={peer.gameObject.name}");
+            Plugin.DebugLog($"LineConnect configured: maxDist={m_lineConnect.m_maxDistance}, peer={(peer != null ? peer.gameObject.name : "<synced>")}");
             return true;
-        }
-
-        private void CreateFallbackRope()
-        {
-            if (m_fallbackRope != null) return;
-
-            m_fallbackRope = gameObject.AddComponent<LineRenderer>();
-            m_fallbackRope.material = BuildFallbackMaterial();
-            m_fallbackRope.startWidth = 0.04f;
-            m_fallbackRope.endWidth = 0.04f;
-            m_fallbackRope.positionCount = 2;
-            m_fallbackRope.useWorldSpace = true;
-            m_fallbackRope.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            m_fallbackRope.textureMode = LineTextureMode.Tile;
-            Plugin.DebugLog("Created fallback LineRenderer rope");
         }
 
         // ========================= Rope Updates =========================
@@ -254,18 +240,20 @@ namespace malafein.Valheim.HitchingPost
             UpdateDebugLabel();
 
             // Show the rope object if it was hidden (e.g. beam went temporarily invalid)
-            if (m_usingLineConnect && m_ropeObject != null && !m_ropeObject.activeSelf)
+            if (m_ropeObject != null && !m_ropeObject.activeSelf)
                 m_ropeObject.SetActive(true);
 
-            if (!m_usingLineConnect && m_fallbackRope != null)
-            {
-                Vector3 beamPos = m_beamNView.transform.position;
-                Vector3 creaturePos = m_creature.transform.position + Vector3.up * CreatureAttachHeight;
-                DrawFallbackRope(creaturePos, beamPos);
-            }
-
-            // Only the owner of the creature should process physics forces
+            // Only the owner of the creature should write ZDO state / process physics.
             if (!m_nview.IsOwner()) return;
+
+            // Re-assert the rope endpoint. line_peer is a ZDOID persisted in the creature
+            // ZDO, but ZDOIDs are reassigned on every world load, so the saved value is
+            // stale across sessions — it renders the rope to nothing or to the wrong
+            // object until rewritten. SetPeer is owner-gated and deduped (an unchanged
+            // value is a no-op), so re-writing it here heals the stale endpoint as soon as
+            // we own the creature, then costs nothing.
+            if (m_lineConnect != null && m_beamNView != null)
+                m_lineConnect.SetPeer(m_beamNView);
 
             float dist = Vector3.Distance(m_creature.transform.position, m_beamNView.transform.position);
             if (dist > HitchingManager.TetherLength)
@@ -274,7 +262,7 @@ namespace malafein.Valheim.HitchingPost
 
         private void UpdateSlack()
         {
-            if (!m_usingLineConnect || m_lineConnect == null) return;
+            if (m_lineConnect == null) return;
 
             float distance = 0f;
             if (m_beamNView != null && m_beamNView.IsValid())
@@ -290,18 +278,10 @@ namespace malafein.Valheim.HitchingPost
 
         private void HideRope()
         {
-            if (m_usingLineConnect)
+            if (m_ropeObject != null && m_ropeObject.activeSelf)
             {
-                if (m_ropeObject != null && m_ropeObject.activeSelf)
-                {
-                    m_ropeObject.SetActive(false);
-                    Plugin.DebugLog($"Rope hidden on {m_creature.GetHoverName()} (Beam invalid/null)");
-                }
-            }
-            else if (m_fallbackRope != null && m_fallbackRope.enabled)
-            {
-                m_fallbackRope.enabled = false;
-                Plugin.DebugLog($"Rope disabled on {m_creature.GetHoverName()} (Beam invalid/null)");
+                m_ropeObject.SetActive(false);
+                Plugin.DebugLog($"Rope hidden on {m_creature.GetHoverName()} (Beam invalid/null)");
             }
         }
 
@@ -316,12 +296,6 @@ namespace malafein.Valheim.HitchingPost
                 m_lineConnect = null;
                 Plugin.DebugLog($"Destroyed LineConnect rope on {m_creature?.GetHoverName()}");
             }
-            if (m_fallbackRope != null)
-            {
-                DestroyImmediate(m_fallbackRope);
-                m_fallbackRope = null;
-                Plugin.DebugLog($"Destroyed fallback rope on {m_creature?.GetHoverName()}");
-            }
             DestroyDebugLabel();
         }
 
@@ -331,28 +305,6 @@ namespace malafein.Valheim.HitchingPost
             DestroyDebugLabel();
             if (m_ropeAnchor != null)
                 Destroy(m_ropeAnchor.gameObject);
-        }
-
-        // ========================= Fallback Drawing =========================
-
-        private void DrawFallbackRopeToPlayer()
-        {
-            if (m_fallbackRope == null || m_playerTarget == null) return;
-            DrawFallbackRope(
-                m_creature.transform.position + Vector3.up * CreatureAttachHeight,
-                m_playerTarget.position + Vector3.up * 1.2f
-            );
-        }
-
-        private void DrawFallbackRope(Vector3 from, Vector3 to)
-        {
-            m_fallbackRope.enabled = true;
-            m_fallbackRope.SetPosition(0, from);
-            m_fallbackRope.SetPosition(1, to);
-
-            float distance = Vector3.Distance(from, to);
-            if (m_fallbackRope.material != null)
-                m_fallbackRope.material.mainTextureScale = new Vector2(distance * 2f, 1f);
         }
 
         // ========================= Physics =========================
@@ -373,16 +325,18 @@ namespace malafein.Valheim.HitchingPost
             rb.velocity += toBeam * Mathf.Min(overshoot * PullStrength * Time.fixedDeltaTime, 3f);
         }
 
-        // ========================= Prefab & Material Lookup =========================
+        // ========================= Prefab Lookup =========================
 
         private static GameObject FindVfxHarpoonedPrefab()
         {
             if (s_vfxHarpoonedPrefab != null) return s_vfxHarpoonedPrefab;
             if (s_prefabSearchDone) return null;
 
-            s_prefabSearchDone = true;
-
+            // Don't latch the "search done" flag until the scene actually exists, or an
+            // early call (before ZNetScene loads) would permanently disable the rope.
             if (ZNetScene.instance == null) return null;
+
+            s_prefabSearchDone = true;
 
             var prefab = ZNetScene.instance.GetPrefab("vfx_Harpooned");
             if (prefab != null && prefab.GetComponent<LineConnect>() != null)
@@ -391,25 +345,7 @@ namespace malafein.Valheim.HitchingPost
                 return s_vfxHarpoonedPrefab;
             }
 
-            Plugin.WarningLog("vfx_Harpooned not found in ZNetScene — using fallback rope");
-            return null;
-        }
-
-        private static Material BuildFallbackMaterial()
-        {
-            if (s_fallbackRopeMaterial != null) return s_fallbackRopeMaterial;
-
-            var shader = Shader.Find("Sprites/Default");
-            if (shader != null)
-            {
-                var mat = new Material(shader);
-                mat.color = new Color(0.55f, 0.38f, 0.18f, 1f);
-                s_fallbackRopeMaterial = mat;
-                Plugin.DebugLog("Created fallback rope material (brown, Sprites/Default)");
-                return s_fallbackRopeMaterial;
-            }
-
-            Plugin.ErrorLog("Failed to create fallback material — Sprites/Default shader not found");
+            Plugin.WarningLog("vfx_Harpooned not found in ZNetScene — rope will not render");
             return null;
         }
 
@@ -466,57 +402,88 @@ namespace malafein.Valheim.HitchingPost
         {
             string tetherId = m_nview.GetZDO().GetString(Plugin.ZDO_KEY_BEAM);
 
-            // Tether broken/cleared
-            if (string.IsNullOrEmpty(tetherId))
+            // ---- Beam tether (persistent) takes priority over hitching mode ----
+            if (!string.IsNullOrEmpty(tetherId))
             {
+                // If we have a cached beam, trust it as long as the reference exists.
+                // The creature ZDO having a tether ID is the authoritative source of
+                // truth. BeamHasCreature reads the *beam's* ZDO, which can lag behind in
+                // multiplayer due to ownership transfers — so we never use it to
+                // invalidate a live reference, and we wait out temporary invalidity.
                 if (m_beamNView != null)
+                    return;
+
+                // Find the beam in the loaded scene that has our tetherId
+                var sw = Stopwatch.StartNew();
+                var allNViews = FindObjectsOfType<ZNetView>();
+                sw.Stop();
+
+                Plugin.DebugLog($"SyncZdoState scan: {allNViews.Length} ZNetViews in {sw.ElapsedMilliseconds}ms");
+                if (sw.ElapsedMilliseconds > 50)
+                    Plugin.WarningLog($"SyncZdoState scan took {sw.ElapsedMilliseconds}ms ({allNViews.Length} ZNetViews) — possible stutter");
+
+                foreach (ZNetView nview in allNViews)
                 {
-                    Plugin.DebugLog($"Tether broke/cleared on {m_creature.GetHoverName()}. IsOwner: {m_nview.IsOwner()}");
-                    m_beamNView = null;
-                    DestroyRope();
-                }
-                return;
-            }
-
-            // If we have a cached beam, trust it as long as the reference is alive.
-            // The creature ZDO having a tether ID is the authoritative source of truth.
-            // BeamHasCreature reads the *beam's* ZDO, which can lag behind in multiplayer
-            // due to ownership transfers — so we never use it to invalidate a live reference.
-            if (m_beamNView != null)
-            {
-                if (m_beamNView.IsValid())
-                    return; // Beam reference is live — tether is fine, don't recreate the rope
-                // Beam temporarily invalid (ownership transfer / zone load) — wait it out
-                return;
-            }
-
-            // We need to find the beam in the loaded scene that has our tetherId
-            var sw = Stopwatch.StartNew();
-            var allNViews = FindObjectsOfType<ZNetView>();
-            sw.Stop();
-
-            Plugin.DebugLog($"SyncZdoState scan: {allNViews.Length} ZNetViews in {sw.ElapsedMilliseconds}ms");
-            if (sw.ElapsedMilliseconds > 50)
-                Plugin.WarningLog($"SyncZdoState scan took {sw.ElapsedMilliseconds}ms ({allNViews.Length} ZNetViews) — possible stutter");
-
-            foreach (ZNetView nview in allNViews)
-            {
-                if (nview.IsValid() && HitchingManager.IsBeam(nview.gameObject))
-                {
-                    if (HitchingManager.BeamHasCreature(nview, tetherId))
+                    if (nview.IsValid() && HitchingManager.IsBeam(nview.gameObject))
                     {
-                        m_beamNView = nview;
-                        CreateRope(nview);
-                        Plugin.DebugLog($"{m_creature.GetHoverName()} successfully resolved beam instance by GUID {tetherId}.");
-                        return;
+                        if (HitchingManager.BeamHasCreature(nview, tetherId))
+                        {
+                            m_beamNView = nview;
+                            m_networkWaitTicks = 0;
+                            CreateRope(nview);
+                            Plugin.DebugLog($"{m_creature.GetHoverName()} successfully resolved beam instance by GUID {tetherId}.");
+                            return;
+                        }
                     }
                 }
+
+                // Only log wait occasionally to avoid log spam
+                m_networkWaitTicks++;
+                if (m_networkWaitTicks % 4 == 0)
+                    Plugin.WarningLog($"{m_creature.GetHoverName()} cannot find beam with GUID {tetherId}. Wait for network load.");
+
+                // Give up after a generous grace period. A tether anchor sits within
+                // ~5m of the creature, so if the creature is loaded its beam should be
+                // in the same active zone; persistent failure means the beam is gone
+                // (destroyed while we were unloaded). Only the owner clears, to avoid
+                // races — and clearing the creature's own ZDO key severs the tether.
+                if (m_networkWaitTicks >= NetworkWaitGiveUp && m_nview.IsOwner())
+                {
+                    Plugin.WarningLog($"{m_creature.GetHoverName()} giving up on missing beam {tetherId}; clearing stale tether.");
+                    m_nview.GetZDO().Set(Plugin.ZDO_KEY_BEAM, "");
+                    m_networkWaitTicks = 0;
+                }
+                return;
             }
 
-            // Only log wait occasionally to avoid log spam
-            m_networkWaitTicks++;
-            if (m_networkWaitTicks % 4 == 0)
-                Plugin.WarningLog($"{m_creature.GetHoverName()} cannot find beam with GUID {tetherId}. Wait for network load.");
+            // ---- No beam tether: drop any beam rope we were holding ----
+            m_networkWaitTicks = 0;
+            if (m_beamNView != null)
+            {
+                Plugin.DebugLog($"Tether broke/cleared on {m_creature.GetHoverName()}. IsOwner: {m_nview.IsOwner()}");
+                m_beamNView = null;
+                DestroyRope();
+            }
+
+            // ---- Passive follow rope ----
+            // Another player has this creature in hitching mode (the follow flag is
+            // synced from whoever owns the creature). We don't own the tether, so we
+            // just instantiate a local rope object; its LineConnect renders the
+            // endpoint synced into the creature ZDO (the follower's player). The local
+            // hitching player never reaches here — its rope is driven from FixedUpdate.
+            bool following = !string.IsNullOrEmpty(m_nview.GetZDO().GetString(Plugin.ZDO_KEY_FOLLOW));
+            if (following)
+            {
+                if (m_ropeObject == null && FindVfxHarpoonedPrefab() != null)
+                {
+                    CreateRope(null);
+                    Plugin.DebugLog($"Created passive follow rope on {m_creature.GetHoverName()}");
+                }
+            }
+            else if (m_ropeObject != null)
+            {
+                DestroyRope();
+            }
         }
     }
 }
